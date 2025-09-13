@@ -2,17 +2,20 @@ import React, { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { ArrowLeft, Upload, FileText, Image, File, Loader2 } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Image, File, Loader2, AlertCircle } from 'lucide-react';
 import { useLearning } from '@/contexts/LearningContext';
 import { useToast } from '@/hooks/use-toast';
 import DuolingoOwl from '@/components/DuolingoOwl';
+import AIProcessingStatus from '@/components/AIProcessingStatus';
+import SmartQuestionGenerator from '@/components/SmartQuestionGenerator';
 
 const FileUpload = () => {
   const navigate = useNavigate();
-  const { uploadFile, setCurrentCourse } = useLearning();
+  const { uploadFile, setCurrentCourse, isLoading, error } = useLearning();
   const { toast } = useToast();
-  const [isProcessing, setIsProcessing] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [processingStep, setProcessingStep] = useState(0);
+  const [showProcessing, setShowProcessing] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setUploadedFiles(prev => [...prev, ...acceptedFiles]);
@@ -33,26 +36,43 @@ const FileUpload = () => {
   const handleProcessFiles = async () => {
     if (uploadedFiles.length === 0) return;
 
-    setIsProcessing(true);
+    setShowProcessing(true);
+    setProcessingStep(0);
+    
+    // Simulate processing steps for better UX
+    const stepInterval = setInterval(() => {
+      setProcessingStep(prev => {
+        if (prev < 3) return prev + 1;
+        clearInterval(stepInterval);
+        return prev;
+      });
+    }, 2000);
+
     try {
-      // Process the first file for demo
       const course = await uploadFile(uploadedFiles[0]);
+      
+      clearInterval(stepInterval);
+      setProcessingStep(4);
+      
+      setTimeout(() => {
+        setShowProcessing(false);
+      }, 1000);
       
       toast({
         title: "Course created successfully!",
-        description: `Generated ${course.skills.length} skills from your content.`,
+        description: `AI generated ${course.skills.length} skills with smart questions!`,
       });
 
       setCurrentCourse(course);
       navigate(`/learn/${course.id}`);
     } catch (error) {
+      clearInterval(stepInterval);
+      setShowProcessing(false);
       toast({
         title: "Error processing file",
-        description: "Please try again with a different file.",
+        description: error || "Please try again with a different file.",
         variant: "destructive"
       });
-    } finally {
-      setIsProcessing(false);
     }
   };
 
@@ -89,13 +109,36 @@ const FileUpload = () => {
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 relative">
             <div className="absolute -left-2 top-4 w-0 h-0 border-t-8 border-b-8 border-r-8 border-transparent border-r-white"></div>
             <p className="text-gray-700 font-medium">
-              Upload your content and I'll create personalized lessons for you!
+              Upload your content and I'll use AI to create personalized lessons with smart questions!
             </p>
           </div>
         </motion.div>
 
+        {/* AI Processing Status */}
+        {showProcessing && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          >
+            <AIProcessingStatus currentStep={processingStep} totalSteps={4} />
+          </motion.div>
+        )}
+
+        {/* Error display */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3"
+          >
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <p className="text-red-700">{error}</p>
+          </motion.div>
+        )}
+
         {/* File upload area */}
-        <div
+        {!showProcessing && <div
           {...getRootProps()}
           className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
             isDragActive 
@@ -121,9 +164,9 @@ const FileUpload = () => {
           </p>
         </motion.div>
         </div>
-
+        }
         {/* Uploaded files */}
-        {uploadedFiles.length > 0 && (
+        {uploadedFiles.length > 0 && !showProcessing && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -153,29 +196,44 @@ const FileUpload = () => {
         )}
 
         {/* Process button */}
-        {uploadedFiles.length > 0 && (
+        {uploadedFiles.length > 0 && !showProcessing && (
           <motion.button
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleProcessFiles}
-            disabled={isProcessing}
+            disabled={isLoading}
             className="w-full bg-duo-green-500 text-white font-bold py-4 px-6 rounded-2xl text-lg duo-shadow hover:bg-duo-green-600 transition-colors mt-8 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {isProcessing ? (
+            {isLoading ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Creating Course...
+                Starting AI Analysis...
               </>
             ) : (
-              'Create Course with AI'
+              '🧠 Generate Smart Course with AI'
             )}
           </motion.button>
         )}
 
+        {/* Smart Question Generator Info */}
+        {!showProcessing && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="mt-8"
+          >
+            <SmartQuestionGenerator 
+              onGenerate={() => {}} 
+              isGenerating={isLoading} 
+            />
+          </motion.div>
+        )}
+
         {/* Sample content suggestion */}
-        <motion.div
+        {!showProcessing && <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
@@ -183,11 +241,14 @@ const FileUpload = () => {
         >
           <h4 className="font-semibold text-duo-yellow-800 mb-2">💡 Pro Tip</h4>
           <p className="text-duo-yellow-700 text-sm">
-            For best results, upload structured content like textbooks, course materials, 
-            or well-organized documents. The AI will automatically break them down into 
-            bite-sized lessons!
+            Upload PDFs, DOCX, or text files with educational content. Our AI will:
+            • Extract key topics and concepts
+            • Generate personalized questions
+            • Create adaptive learning paths
+            • Provide intelligent explanations
           </p>
         </motion.div>
+        }
       </div>
     </div>
   );

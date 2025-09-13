@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, Volume2, Check, X } from 'lucide-react';
 import { useLearning } from '@/contexts/LearningContext';
 import { useToast } from '@/hooks/use-toast';
+import { CourseService } from '@/services/courseService';
 import MultipleChoiceQuestion from '@/components/questions/MultipleChoiceQuestion';
 import FillBlankQuestion from '@/components/questions/FillBlankQuestion';
 import TrueFalseQuestion from '@/components/questions/TrueFalseQuestion';
@@ -57,6 +58,15 @@ const Lesson = () => {
     } else {
       setHearts(prev => Math.max(0, prev - 1));
     }
+
+    // Save user's answer to database
+    CourseService.saveUserAnswer(
+      user.id,
+      lesson.id,
+      currentQuestion.id,
+      selectedAnswer,
+      correct
+    ).catch(console.error);
   };
 
   const handleContinue = () => {
@@ -67,9 +77,13 @@ const Lesson = () => {
     } else {
       // Lesson complete
       completeLesson(lesson.id, xpGained);
+      
+      // Update lesson progress in database
+      CourseService.updateLessonProgress(lesson.id, user.id).catch(console.error);
+      
       toast({
         title: "Lesson Complete!",
-        description: `You earned ${xpGained} XP!`,
+        description: `You earned ${xpGained} XP! AI tracked your progress.`,
       });
       navigate(-1);
     }

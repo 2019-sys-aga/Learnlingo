@@ -1,0 +1,183 @@
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true // Note: In production, use a backend API
+});
+
+export interface ExtractedContent {
+  title: string;
+  topics: Topic[];
+  language: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+}
+
+export interface Topic {
+  title: string;
+  description: string;
+  content: string;
+  keyPoints: string[];
+}
+
+export interface GeneratedQuestion {
+  type: 'multiple-choice' | 'fill-blank' | 'true-false' | 'short-answer';
+  question: string;
+  options?: string[];
+  correctAnswer: string | string[];
+  explanation: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+}
+
+export class AIContentProcessor {
+  static async extractContentFromText(text: string, filename: string): Promise<ExtractedContent> {
+    try {
+      const prompt = `
+        Analyze the following educational content and extract structured information:
+        
+        Content: "${text.substring(0, 4000)}..."
+        Filename: "${filename}"
+        
+        Please return a JSON object with:
+        1. title: A clear, descriptive title for this course
+        2. language: The primary language of instruction (e.g., "English", "Spanish", "Math", "Science")
+        3. difficulty: "beginner", "intermediate", or "advanced"
+        4. topics: An array of 5-8 main topics, each with:
+           - title: Topic name
+           - description: Brief description
+           - content: Key content summary (100-200 words)
+           - keyPoints: Array of 3-5 important points
+        
+        Focus on creating educational topics that can be turned into interactive lessons.
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert educational content analyzer. Return only valid JSON."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('No response from OpenAI');
+
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('Error extracting content:', error);
+      // Fallback to basic extraction
+      return this.fallbackContentExtraction(text, filename);
+    }
+  }
+
+  static async generateQuestionsForTopic(topic: Topic): Promise<GeneratedQuestion[]> {
+    try {
+      const prompt = `
+        Create 4 educational questions based on this topic:
+        
+        Topic: ${topic.title}
+        Description: ${topic.description}
+        Content: ${topic.content}
+        Key Points: ${topic.keyPoints.join(', ')}
+        
+        Generate exactly 4 questions with different types:
+        1. One multiple-choice question
+        2. One fill-in-the-blank question
+        3. One true/false question
+        4. One short-answer question
+        
+        Return a JSON array where each question has:
+        - type: "multiple-choice" | "fill-blank" | "true-false" | "short-answer"
+        - question: The question text
+        - options: Array of 4 options (only for multiple-choice)
+        - correctAnswer: The correct answer (string or array for multiple correct answers)
+        - explanation: Why this answer is correct
+        - difficulty: "easy" | "medium" | "hard"
+        
+        Make questions engaging and educational, testing understanding rather than memorization.
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert educational question generator. Return only valid JSON array."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.8,
+        max_tokens: 1500
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('No response from OpenAI');
+
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('Error generating questions:', error);
+      return this.fallbackQuestionGeneration(topic);
+    }
+  }
+
+  private static fallbackContentExtraction(text: string, filename: string): ExtractedContent {
+    const words = text.split(' ').length;
+    const topicCount = Math.min(Math.max(Math.floor(words / 300), 3), 8);
+    
+    return {
+      title: filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' '),
+      language: 'General',
+      difficulty: words > 2000 ? 'advanced' : words > 1000 ? 'intermediate' : 'beginner',
+      topics: Array.from({ length: topicCount }, (_, index) => ({
+        title: `Topic ${index + 1}`,
+        description: `Key concepts from section ${index + 1}`,
+        content: text.slice(index * 300, (index + 1) * 300),
+        keyPoints: [`Point ${index + 1}.1`, `Point ${index + 1}.2`, `Point ${index + 1}.3`]
+      }))
+    };
+  }
+
+  private static fallbackQuestionGeneration(topic: Topic): GeneratedQuestion[] {
+    return [
+      {
+        type: 'multiple-choice',
+        question: `What is the main concept in ${topic.title}?`,
+        options: ['Concept A', 'Concept B', 'Concept C', 'Concept D'],
+        correctAnswer: 'Concept A',
+        explanation: 'This is the primary concept discussed.',
+        difficulty: 'medium'
+      },
+      {
+        type: 'fill-blank',
+        question: `Complete this statement about ${topic.title}: The main idea is ______`,
+        correctAnswer: 'important',
+        explanation: 'This term captures the essence of the topic.',
+        difficulty: 'easy'
+      },
+      {
+        type: 'true-false',
+        question: `${topic.title} is an important concept to understand.`,
+        correctAnswer: 'true',
+        explanation: 'Understanding this topic is fundamental.',
+        difficulty: 'easy'
+      },
+      {
+        type: 'short-answer',
+        question: `Explain the significance of ${topic.title} in your own words.`,
+        correctAnswer: 'Various acceptable answers',
+        explanation: 'This tests comprehension and ability to explain concepts.',
+        difficulty: 'hard'
+      }
+    ];
+  }
+}

@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase, type Course as DBCourse } from '@/lib/supabase';
+import { CourseService } from '@/services/courseService';
 
 interface User {
   id: string;
@@ -64,11 +66,16 @@ interface LearningContextType {
   completeLesson: (lessonId: string, xpGained: number) => void;
   uploadFile: (file: File) => Promise<Course>;
   generateCourseFromContent: (content: string, title: string) => Course;
+  isLoading: boolean;
+  error: string | null;
 }
 
 const LearningContext = createContext<LearningContextType | null>(null);
 
 export const LearningProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
   const [user, setUser] = useState<User>({
     id: '1',
     name: 'Learning Enthusiast',
@@ -104,6 +111,62 @@ export const LearningProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
   const [currentLesson, setCurrentLesson] = useState<LessonData | null>(null);
 
+  // Load user courses on mount
+  useEffect(() => {
+    loadUserCourses();
+  }, []);
+
+  const loadUserCourses = async () => {
+    try {
+      setIsLoading(true);
+      const userCourses = await CourseService.getUserCourses(user.id);
+      
+      // Convert database courses to app format
+      const formattedCourses = await Promise.all(
+        userCourses.map(async (course) => {
+          const courseDetails = await CourseService.getCourseWithDetails(course.id);
+          return {
+            id: courseDetails.id,
+            title: courseDetails.title,
+            description: courseDetails.description,
+            language: courseDetails.language,
+            flag: courseDetails.flag,
+            progress: courseDetails.progress,
+            skills: courseDetails.skills
+          };
+        })
+      );
+      
+      setCourses([...defaultCourses, ...formattedCourses]);
+    } catch (err) {
+      console.error('Error loading courses:', err);
+      setError('Failed to load courses');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Default sample courses
+  const defaultCourses = [
+    {
+      id: 'spanish',
+      title: 'Spanish',
+      description: 'Learn Spanish from scratch',
+      language: 'Spanish',
+      flag: '🇪🇸',
+      progress: 25,
+      skills: generateSampleSkills('spanish')
+    },
+    {
+      id: 'french',
+      title: 'French',
+      description: 'Master the French language',
+      language: 'French',
+      flag: '🇫🇷',
+      progress: 15,
+      skills: generateSampleSkills('french')
+    }
+  ];
   const updateUser = (updates: Partial<User>) => {
     setUser(prev => ({ ...prev, ...updates }));
   };
@@ -127,10 +190,35 @@ export const LearningProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const uploadFile = async (file: File): Promise<Course> => {
-    // Simulate file processing
-    const content = await readFileContent(file);
-    const courseTitle = file.name.replace(/\.[^/.]+$/, "");
-    return generateCourseFromContent(content, courseTitle);
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Create course using AI and Supabase
+      const dbCourse = await CourseService.createCourseFromFile(file, user.id);
+      
+      // Get full course details
+      const courseDetails = await CourseService.getCourseWithDetails(dbCourse.id);
+      
+      const newCourse: Course = {
+        id: courseDetails.id,
+        title: courseDetails.title,
+        description: courseDetails.description,
+        language: courseDetails.language,
+        flag: courseDetails.flag,
+        progress: 0,
+        skills: courseDetails.skills
+      };
+      
+      setCourses(prev => [...prev, newCourse]);
+      return newCourse;
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      setError('Failed to process file. Please try again.');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const generateCourseFromContent = (content: string, title: string): Course => {
@@ -163,7 +251,9 @@ export const LearningProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setCurrentLesson,
       completeLesson,
       uploadFile,
-      generateCourseFromContent
+      generateCourseFromContent,
+      isLoading,
+      error
     }}>
       {children}
     </LearningContext.Provider>
