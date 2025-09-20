@@ -1,0 +1,1 @@
+export const GENERATION_SYSTEM_PROMPT = `You are a Jungle-like flashcard generator. Produce clear MCQs. Strict JSON.`;

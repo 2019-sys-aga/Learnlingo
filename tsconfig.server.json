@@ -1,0 +1,14 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"target": "ES2021",
+		"module": "ESNext",
+		"outDir": "dist-server",
+		"rootDir": "src",
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true
+	},
+	"include": ["src/server/**/*.ts", "src/generated/**/*.ts"],
+	"exclude": ["node_modules", "dist", "dist-server"]
+}
