@@ -1,0 +1,129 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Core data model for Jungle-like flashcard app
+
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  email     String?  @unique
+  name      String?
+
+  decks     Deck[]
+}
+
+model Deck {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  title       String
+  description String?
+  theme       String?  // e.g. jungle color theme key
+
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+
+  cards       Card[]
+  uploads     Upload[]
+  chats       ChatMessage[]
+  sessions    QuizSession[]
+}
+
+enum CardType {
+  mcq
+  open
+}
+
+model Card {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deckId      String
+  deck        Deck     @relation(fields: [deckId], references: [id])
+
+  type        CardType @default(mcq)
+  question    String
+  answer      String
+  explanation String?
+  // JSON stringified choices for MCQ, e.g. ["A","B","C","D"]
+  choicesJson String?
+  correctKey  String?  // e.g. "A" or full answer for open
+  sourceRef   String?  // filename or chunk id
+
+  chatMessages ChatMessage[]
+  quizAnswers  QuizAnswer[]
+}
+
+model Upload {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  deckId      String
+  deck        Deck     @relation(fields: [deckId], references: [id])
+
+  filename    String
+  mimetype    String
+  // Persist extracted text so AI has context without re-reading files
+  textContent String?
+  filepath    String?
+}
+
+enum ChatRole {
+  user
+  assistant
+  system
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  deckId    String
+  deck      Deck     @relation(fields: [deckId], references: [id])
+
+  role      ChatRole
+  content   String
+  sessionId String?
+  cardId    String?
+  card      Card?    @relation(fields: [cardId], references: [id])
+}
+
+model QuizSession {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deckId      String
+  deck        Deck     @relation(fields: [deckId], references: [id])
+
+  currentIdx  Int      @default(0)
+  numCorrect  Int      @default(0)
+  total       Int      @default(0)
+
+  answers     QuizAnswer[]
+}
+
+model QuizAnswer {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  sessionId   String
+  session     QuizSession @relation(fields: [sessionId], references: [id])
+  cardId      String
+  card        Card     @relation(fields: [cardId], references: [id])
+  userAnswer  String
+  isCorrect   Boolean
+  feedback    String?
+}
