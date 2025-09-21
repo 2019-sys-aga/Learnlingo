@@ -3,6 +3,7 @@ import { Send, Bot, User, MessageCircle, FileText } from 'lucide-react'
 import { useStudy } from '../contexts/StudyContext'
 import { ChatMessage } from '../types'
 import { generateId } from '../lib/utils'
+import { aiService } from '../services/aiService'
 
 interface AIChatProps {
   studySetId?: string
@@ -33,47 +34,41 @@ export default function AIChat({ studySetId }: AIChatProps) {
     }
 
     dispatch({ type: 'ADD_CHAT_MESSAGE', payload: userMessage })
+    const currentMessage = inputMessage.trim()
     setInputMessage('')
     setIsTyping(true)
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // Get context from uploaded files if available
+      const context = state.uploadedFiles
+        .filter(file => file.processed && file.content)
+        .map(file => file.content)
+        .join('\n\n')
+
+      // Call real AI service
+      const aiResponseText = await aiService.chatWithAI(currentMessage, context)
+      
       const aiResponse: ChatMessage = {
         id: generateId(),
         role: 'assistant',
-        content: generateAIResponse(inputMessage.trim()),
+        content: aiResponseText,
         timestamp: new Date()
       }
       dispatch({ type: 'ADD_CHAT_MESSAGE', payload: aiResponse })
+    } catch (error) {
+      console.error('Error getting AI response:', error)
+      const errorResponse: ChatMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: "I'm sorry, I'm having trouble responding right now. Please check your API key and try again.",
+        timestamp: new Date()
+      }
+      dispatch({ type: 'ADD_CHAT_MESSAGE', payload: errorResponse })
+    } finally {
       setIsTyping(false)
-    }, 1500)
+    }
   }
 
-  const generateAIResponse = (userInput: string): string => {
-    const responses = [
-      "That's a great question! Let me help you understand this concept better.",
-      "I can explain that for you. Here's what you need to know...",
-      "Excellent question! This relates to several important concepts in your study material.",
-      "Let me break this down for you step by step.",
-      "This is a common point of confusion. Here's the explanation...",
-      "Great! This connects to what you've been studying. Here's how..."
-    ]
-
-    // Simple keyword matching for more contextual responses
-    if (userInput.toLowerCase().includes('mitosis')) {
-      return "Mitosis is the process of cell division that creates two identical daughter cells. It consists of several phases: prophase, metaphase, anaphase, and telophase. This process is essential for growth, repair, and asexual reproduction in organisms."
-    }
-    
-    if (userInput.toLowerCase().includes('photosynthesis')) {
-      return "Photosynthesis is the process by which plants convert light energy into chemical energy. The overall equation is: 6CO₂ + 6H₂O + light energy → C₆H₁₂O₆ + 6O₂. This process occurs in the chloroplasts and is crucial for life on Earth."
-    }
-
-    if (userInput.toLowerCase().includes('protein')) {
-      return "Proteins are macromolecules composed of amino acids. They have four levels of structure: primary (amino acid sequence), secondary (alpha helices and beta sheets), tertiary (3D folding), and quaternary (multiple polypeptide chains). Proteins serve many functions including enzymes, structural support, and transport."
-    }
-
-    return responses[Math.floor(Math.random() * responses.length)]
-  }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -197,13 +192,13 @@ export default function AIChat({ studySetId }: AIChatProps) {
           Explain concepts
         </button>
         <button
-          onClick={() => setInputMessage('Give me a practice question')}
+          onClick={() => setInputMessage('Give me a practice question about the material')}
           className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full transition-colors"
         >
           Practice question
         </button>
         <button
-          onClick={() => setInputMessage('Summarize the key points')}
+          onClick={() => setInputMessage('Summarize the key points from my study material')}
           className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full transition-colors"
         >
           Summarize

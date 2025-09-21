@@ -6,11 +6,49 @@ import Header from './components/Header'
 import HomePage from './pages/HomePage'
 import StudyPage from './pages/StudyPage'
 import DemoPage from './pages/DemoPage'
+import ApiKeySetup from './components/ApiKeySetup'
 import { StudySet, Flashcard, Quiz, Question } from './types'
 import { generateId } from './lib/utils'
 
 function AppContent() {
   const navigate = useNavigate()
+  const [apiKey, setApiKey] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Check for API key on component mount
+  useEffect(() => {
+    const storedApiKey = localStorage.getItem('jungle_ai_api_key')
+    const envApiKey = import.meta.env.VITE_GEMINI_API_KEY
+    
+    if (storedApiKey || envApiKey) {
+      setApiKey(storedApiKey || envApiKey)
+    }
+    setIsLoading(false)
+  }, [])
+
+  const handleApiKeySet = (key: string) => {
+    setApiKey(key)
+  }
+
+  // Show API key setup if no key is available
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-jungle-600"></div>
+      </div>
+    )
+  }
+
+  if (!apiKey) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <JungleBackground />
+        <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+          <ApiKeySetup onApiKeySet={handleApiKeySet} />
+        </div>
+      </div>
+    )
+  }
 
   // Mock data for demonstration
   const mockStudySets: StudySet[] = [
