@@ -1,5 +1,5 @@
 import React from 'react'
-import { Monkey, BookOpen, Trophy, Settings } from 'lucide-react'
+import { Leaf, BookOpen, Trophy, Settings } from 'lucide-react'
 
 export default function Header() {
   return (
@@ -10,7 +10,7 @@ export default function Header() {
           <div className="flex items-center space-x-3">
             <div className="relative">
               <div className="w-10 h-10 bg-gradient-to-br from-leaf-400 to-jungle-600 rounded-xl flex items-center justify-center">
-                <Monkey className="w-6 h-6 text-white" />
+                <Leaf className="w-6 h-6 text-white" />
               </div>
               <div className="absolute -top-1 -right-1 w-4 h-4 bg-leaf-400 rounded-full flex items-center justify-center">
                 <div className="w-2 h-2 bg-white rounded-full"></div>
